@@ -14,7 +14,6 @@ import path from "path";
 
 const CONFIG = {
   token: process.env.DISCORD_TOKEN,
-  channelId: process.env.DISCORD_CHANNEL_ID,
   userId: process.env.DISCORD_USER_ID,
   port: parseInt(process.env.DISCORD_BRIDGE_PORT || "13456", 10),
   defaultTimeout: 5 * 60 * 1000,
@@ -26,7 +25,6 @@ const CONFIG = {
 function validateConfig() {
   const missing = [];
   if (!CONFIG.token) missing.push("DISCORD_TOKEN");
-  if (!CONFIG.channelId) missing.push("DISCORD_CHANNEL_ID");
   if (!CONFIG.userId) missing.push("DISCORD_USER_ID");
   if (missing.length > 0) {
     throw new Error(
@@ -40,9 +38,32 @@ function validateConfig() {
 // ---------------------------------------------------------------------------
 
 let discordClient = null;
-let channel = null;
-const messageQueue = [];
-let pendingQuestion = null;
+
+// Per-channel state
+const channelCache = new Map();
+const messageQueues = new Map();
+const pendingQuestions = new Map();
+
+function getMessageQueue(channelId) {
+  if (!messageQueues.has(channelId)) {
+    messageQueues.set(channelId, []);
+  }
+  return messageQueues.get(channelId);
+}
+
+async function fetchChannel(channelId) {
+  if (channelCache.has(channelId)) {
+    return channelCache.get(channelId);
+  }
+  const ch = await discordClient.channels.fetch(channelId);
+  if (!ch || !ch.isTextBased()) {
+    throw new Error(
+      `Channel ${channelId} not found or is not a text channel`
+    );
+  }
+  channelCache.set(channelId, ch);
+  return ch;
+}
 
 async function initDiscord() {
   discordClient = new Client({
@@ -55,8 +76,9 @@ async function initDiscord() {
 
   discordClient.on("messageCreate", (message) => {
     if (message.author.id !== CONFIG.userId) return;
-    if (message.channel.id !== CONFIG.channelId) return;
     if (message.author.bot) return;
+
+    const chId = message.channel.id;
 
     const parsed = {
       content: message.content,
@@ -70,15 +92,16 @@ async function initDiscord() {
       id: message.id,
     };
 
-    if (pendingQuestion) {
-      const { resolve, timeoutId } = pendingQuestion;
-      clearTimeout(timeoutId);
-      pendingQuestion = null;
-      resolve(parsed);
+    const pending = pendingQuestions.get(chId);
+    if (pending) {
+      clearTimeout(pending.timeoutId);
+      pendingQuestions.delete(chId);
+      pending.resolve(parsed);
     } else {
-      messageQueue.push(parsed);
-      if (messageQueue.length > CONFIG.maxMessageHistory) {
-        messageQueue.shift();
+      const queue = getMessageQueue(chId);
+      queue.push(parsed);
+      if (queue.length > CONFIG.maxMessageHistory) {
+        queue.shift();
       }
     }
   });
@@ -94,15 +117,7 @@ async function initDiscord() {
     discordClient.once("error", reject);
   });
 
-  channel = await discordClient.channels.fetch(CONFIG.channelId);
-  if (!channel || !channel.isTextBased()) {
-    throw new Error(
-      `Channel ${CONFIG.channelId} not found or is not a text channel`
-    );
-  }
-
   console.log(`[discord-bridge] Bot connected as ${discordClient.user.tag}`);
-  return channel;
 }
 
 // ---------------------------------------------------------------------------
@@ -120,21 +135,25 @@ function createEmbed({ title, description, color = 0x7c3aed, fields = [] }) {
   return embed;
 }
 
-async function sendMessage(content, embeds = [], files = []) {
-  if (!channel) throw new Error("Discord channel not initialized");
-  return channel.send({ content, embeds, files });
+async function sendMessage(channelId, content, embeds = [], files = []) {
+  const ch = await fetchChannel(channelId);
+  return ch.send({ content, embeds, files });
 }
 
-function waitForReply(timeoutMs) {
+function waitForReply(channelId, timeoutMs) {
   return new Promise((resolve, reject) => {
     const timeoutId = setTimeout(() => {
-      pendingQuestion = null;
+      pendingQuestions.delete(channelId);
       reject(
         new Error(`No reply received within ${timeoutMs / 1000} seconds`)
       );
     }, timeoutMs);
-    pendingQuestion = { resolve, reject, timeoutId };
+    pendingQuestions.set(channelId, { resolve, reject, timeoutId });
   });
+}
+
+function resolveChannelId(req) {
+  return req.body?.channelId || req.query?.channelId || null;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,17 +166,25 @@ app.use(express.json());
 // ---- GET /health ----
 app.get("/health", (_req, res) => {
   const botReady = discordClient?.isReady() ?? false;
-  res.json({
+  const channelId = _req.query.channelId;
+  const response = {
     status: botReady ? "ok" : "disconnected",
     bot: discordClient?.user?.tag ?? null,
-    channel: CONFIG.channelId,
-    queuedMessages: messageQueue.length,
-  });
+  };
+  if (channelId) {
+    response.channel = channelId;
+    response.queuedMessages = getMessageQueue(channelId).length;
+  }
+  res.json(response);
 });
 
 // ---- POST /ask ----
 app.post("/ask", async (req, res) => {
   const { question, context, timeout_seconds = 300, options } = req.body;
+  const channelId = resolveChannelId(req);
+  if (!channelId) {
+    return res.status(400).json({ status: "error", error: "channelId is required" });
+  }
   if (!question) {
     return res.status(400).json({ status: "error", error: "question is required" });
   }
@@ -186,10 +213,10 @@ app.post("/ask", async (req, res) => {
     fields,
   });
 
-  await sendMessage(`<@${CONFIG.userId}>`, [embed]);
+  await sendMessage(channelId, `<@${CONFIG.userId}>`, [embed]);
 
   try {
-    const reply = await waitForReply(timeoutMs);
+    const reply = await waitForReply(channelId, timeoutMs);
     res.json({
       status: "replied",
       reply: reply.content,
@@ -204,6 +231,10 @@ app.post("/ask", async (req, res) => {
 // ---- POST /notify ----
 app.post("/notify", async (req, res) => {
   const { message, level = "info", title } = req.body;
+  const channelId = resolveChannelId(req);
+  if (!channelId) {
+    return res.status(400).json({ status: "error", error: "channelId is required" });
+  }
   if (!message) {
     return res.status(400).json({ status: "error", error: "message is required" });
   }
@@ -222,7 +253,7 @@ app.post("/notify", async (req, res) => {
   };
 
   if (level === "info") {
-    await sendMessage(message);
+    await sendMessage(channelId, message);
   } else {
     const embed = createEmbed({
       title:
@@ -230,7 +261,7 @@ app.post("/notify", async (req, res) => {
       description: message,
       color: colorMap[level] ?? colorMap.info,
     });
-    await sendMessage(null, [embed]);
+    await sendMessage(channelId, null, [embed]);
   }
   res.json({ status: "sent", level });
 });
@@ -238,6 +269,10 @@ app.post("/notify", async (req, res) => {
 // ---- POST /send-file ----
 app.post("/send-file", async (req, res) => {
   const { file_path, message } = req.body;
+  const channelId = resolveChannelId(req);
+  if (!channelId) {
+    return res.status(400).json({ status: "error", error: "channelId is required" });
+  }
   if (!file_path) {
     return res.status(400).json({ status: "error", error: "file_path is required" });
   }
@@ -267,12 +302,17 @@ app.post("/send-file", async (req, res) => {
     color: 0x9b59b6,
   });
 
-  await sendMessage(null, [embed], [attachment]);
+  await sendMessage(channelId, null, [embed], [attachment]);
   res.json({ status: "sent", fileName });
 });
 
 // ---- GET /messages ----
 app.get("/messages", async (req, res) => {
+  const channelId = resolveChannelId(req);
+  if (!channelId) {
+    return res.status(400).json({ status: "error", error: "channelId is required" });
+  }
+
   const count = Math.min(
     parseInt(req.query.count || "10", 10),
     CONFIG.maxMessageHistory
@@ -280,12 +320,14 @@ app.get("/messages", async (req, res) => {
   const includeHistory = req.query.include_history === "true";
   const messages = [];
 
-  const queued = messageQueue.splice(0, count);
+  const queue = getMessageQueue(channelId);
+  const queued = queue.splice(0, count);
   messages.push(...queued.map((m) => ({ ...m, source: "queued" })));
 
   if (includeHistory && messages.length < count) {
     const remaining = count - messages.length;
-    const fetched = await channel.messages.fetch({ limit: remaining });
+    const ch = await fetchChannel(channelId);
+    const fetched = await ch.messages.fetch({ limit: remaining });
     const history = fetched
       .filter((m) => m.author.id === CONFIG.userId && !m.author.bot)
       .map((m) => ({
@@ -309,19 +351,25 @@ app.get("/messages", async (req, res) => {
 // ---- POST /wait ----
 app.post("/wait", async (req, res) => {
   const { timeout_seconds = 300, notify = true } = req.body ?? {};
+  const channelId = resolveChannelId(req);
+  if (!channelId) {
+    return res.status(400).json({ status: "error", error: "channelId is required" });
+  }
+
   const timeoutMs = Math.min(timeout_seconds * 1000, CONFIG.maxTimeout);
 
-  if (messageQueue.length > 0) {
-    const msg = messageQueue.shift();
+  const queue = getMessageQueue(channelId);
+  if (queue.length > 0) {
+    const msg = queue.shift();
     return res.json({ status: "received", message: msg });
   }
 
   if (notify) {
-    await sendMessage(`待機します（タイムアウト${timeout_seconds}s）`);
+    await sendMessage(channelId, `待機します（タイムアウト${timeout_seconds}s）`);
   }
 
   try {
-    const reply = await waitForReply(timeoutMs);
+    const reply = await waitForReply(channelId, timeoutMs);
     res.json({ status: "received", message: reply });
   } catch (err) {
     res.status(408).json({ status: "timeout", error: err.message });
