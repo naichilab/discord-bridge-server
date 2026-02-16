@@ -126,13 +126,10 @@ async function initDiscord() {
       }
 
       // Notify SSE subscribers that a new message is available
-      const hasSubs = broadcastSseEvent(chId, "notify", {});
-      if (hasSubs) {
-        const preview = parsed.content.length > 20
-          ? parsed.content.slice(0, 20) + "..."
-          : parsed.content;
-        message.reply(`受信しました (${preview})`).catch(() => {});
-      }
+      broadcastSseEvent(chId, "notify", {});
+
+      // Auto-ack: show queue depth
+      message.channel.send(`受信 キュー${queue.length}`).catch(() => {});
     }
   });
 
@@ -395,6 +392,19 @@ app.get("/messages", async (req, res) => {
   const queue = getMessageQueue(channelId);
   const queued = queue.splice(0, count);
   messages.push(...queued.map((m) => ({ ...m, source: "queued" })));
+
+  // Notify Discord that messages were delivered to Claude Code
+  if (queued.length > 0) {
+    try {
+      const ch = await fetchChannel(channelId);
+      for (const msg of queued) {
+        const preview = msg.content.length > 20
+          ? msg.content.slice(0, 20) + "..."
+          : msg.content;
+        ch.send(`メッセージ伝達: ${preview}`).catch(() => {});
+      }
+    } catch { /* ignore */ }
+  }
 
   if (includeHistory && messages.length < count) {
     const remaining = count - messages.length;
