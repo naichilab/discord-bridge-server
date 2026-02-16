@@ -111,23 +111,27 @@ async function initDiscord() {
       id: message.id,
     };
 
-    // Priority: pendingQuestion (/ask) > SSE subscribers > queue
+    // Priority: pendingQuestion (/ask) > queue + SSE notify
     const pending = pendingQuestions.get(chId);
     if (pending) {
       clearTimeout(pending.timeoutId);
       pendingQuestions.delete(chId);
       pending.resolve(parsed);
-    } else if (broadcastSseEvent(chId, "message", parsed)) {
-      // Delivered to SSE subscribers — send auto-ack to Discord
-      const preview = parsed.content.length > 20
-        ? parsed.content.slice(0, 20) + "..."
-        : parsed.content;
-      message.reply(`受信しました (${preview})`).catch(() => {});
     } else {
+      // Always queue (SSE is unreliable for delivery confirmation)
       const queue = getMessageQueue(chId);
       queue.push(parsed);
       if (queue.length > CONFIG.maxMessageHistory) {
         queue.shift();
+      }
+
+      // Notify SSE subscribers that a new message is available
+      const hasSubs = broadcastSseEvent(chId, "notify", {});
+      if (hasSubs) {
+        const preview = parsed.content.length > 20
+          ? parsed.content.slice(0, 20) + "..."
+          : parsed.content;
+        message.reply(`受信しました (${preview})`).catch(() => {});
       }
     }
   });
@@ -221,11 +225,10 @@ app.get("/events", (req, res) => {
   // Send connected event
   res.write(`event: connected\ndata: ${JSON.stringify({ channelId })}\n\n`);
 
-  // Flush one queued message (script reads one at a time; rest stay in queue)
+  // If there are queued messages, notify immediately so client can fetch via /messages
   const queue = getMessageQueue(channelId);
   if (queue.length > 0) {
-    const msg = queue.shift();
-    res.write(`event: message\ndata: ${JSON.stringify(msg)}\n\n`);
+    res.write(`event: notify\ndata: {}\n\n`);
   }
 
   // Register subscriber
