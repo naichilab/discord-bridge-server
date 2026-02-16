@@ -118,7 +118,11 @@ async function initDiscord() {
       pendingQuestions.delete(chId);
       pending.resolve(parsed);
     } else if (broadcastSseEvent(chId, "message", parsed)) {
-      // Delivered to SSE subscribers
+      // Delivered to SSE subscribers — send auto-ack to Discord
+      const preview = parsed.content.length > 20
+        ? parsed.content.slice(0, 20) + "..."
+        : parsed.content;
+      message.reply(`受信しました (${preview})`).catch(() => {});
     } else {
       const queue = getMessageQueue(chId);
       queue.push(parsed);
