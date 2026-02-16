@@ -13,8 +13,8 @@ import path from "path";
 // ---------------------------------------------------------------------------
 
 const CONFIG = {
-  token: process.env.DISCORD_TOKEN,
-  userId: process.env.DISCORD_USER_ID,
+  token: process.env.DISCORD_BRIDGE_TOKEN,
+  userId: process.env.DISCORD_BRIDGE_USER_ID,
   port: parseInt(process.env.DISCORD_BRIDGE_PORT || "13456", 10),
   defaultTimeout: 5 * 60 * 1000,
   maxTimeout: 30 * 60 * 1000,
@@ -24,8 +24,8 @@ const CONFIG = {
 
 function validateConfig() {
   const missing = [];
-  if (!CONFIG.token) missing.push("DISCORD_TOKEN");
-  if (!CONFIG.userId) missing.push("DISCORD_USER_ID");
+  if (!CONFIG.token) missing.push("DISCORD_BRIDGE_TOKEN");
+  if (!CONFIG.userId) missing.push("DISCORD_BRIDGE_USER_ID");
   if (missing.length > 0) {
     throw new Error(
       `Missing required environment variables: ${missing.join(", ")}`
