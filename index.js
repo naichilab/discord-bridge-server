@@ -20,6 +20,7 @@ const CONFIG = {
   maxTimeout: 30 * 60 * 1000,
   maxFileSize: 8 * 1024 * 1024,
   maxMessageHistory: 50,
+  sseKeepAliveInterval: 30 * 1000,
 };
 
 function validateConfig() {
@@ -43,12 +44,30 @@ let discordClient = null;
 const channelCache = new Map();
 const messageQueues = new Map();
 const pendingQuestions = new Map();
+const sseSubscribers = new Map();
 
 function getMessageQueue(channelId) {
   if (!messageQueues.has(channelId)) {
     messageQueues.set(channelId, []);
   }
   return messageQueues.get(channelId);
+}
+
+function getSseSubscribers(channelId) {
+  if (!sseSubscribers.has(channelId)) {
+    sseSubscribers.set(channelId, new Set());
+  }
+  return sseSubscribers.get(channelId);
+}
+
+function broadcastSseEvent(channelId, event, data) {
+  const subscribers = sseSubscribers.get(channelId);
+  if (!subscribers || subscribers.size === 0) return false;
+  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  for (const res of subscribers) {
+    res.write(payload);
+  }
+  return true;
 }
 
 async function fetchChannel(channelId) {
@@ -92,11 +111,14 @@ async function initDiscord() {
       id: message.id,
     };
 
+    // Priority: pendingQuestion (/ask) > SSE subscribers > queue
     const pending = pendingQuestions.get(chId);
     if (pending) {
       clearTimeout(pending.timeoutId);
       pendingQuestions.delete(chId);
       pending.resolve(parsed);
+    } else if (broadcastSseEvent(chId, "message", parsed)) {
+      // Delivered to SSE subscribers
     } else {
       const queue = getMessageQueue(chId);
       queue.push(parsed);
@@ -174,8 +196,51 @@ app.get("/health", (_req, res) => {
   if (channelId) {
     response.channel = channelId;
     response.queuedMessages = getMessageQueue(channelId).length;
+    response.sseSubscribers = getSseSubscribers(channelId).size;
   }
   res.json(response);
+});
+
+// ---- GET /events (SSE) ----
+app.get("/events", (req, res) => {
+  const channelId = req.query.channelId;
+  if (!channelId) {
+    return res.status(400).json({ status: "error", error: "channelId is required" });
+  }
+
+  // Set SSE headers
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  // Send connected event
+  res.write(`event: connected\ndata: ${JSON.stringify({ channelId })}\n\n`);
+
+  // Flush any queued messages
+  const queue = getMessageQueue(channelId);
+  while (queue.length > 0) {
+    const msg = queue.shift();
+    res.write(`event: message\ndata: ${JSON.stringify(msg)}\n\n`);
+  }
+
+  // Register subscriber
+  const subscribers = getSseSubscribers(channelId);
+  subscribers.add(res);
+
+  // Keep-alive ping
+  const pingInterval = setInterval(() => {
+    res.write(`event: ping\ndata: ${JSON.stringify({ timestamp: new Date().toISOString() })}\n\n`);
+  }, CONFIG.sseKeepAliveInterval);
+
+  // Cleanup on disconnect
+  req.on("close", () => {
+    clearInterval(pingInterval);
+    subscribers.delete(res);
+    if (subscribers.size === 0) {
+      sseSubscribers.delete(channelId);
+    }
+  });
 });
 
 // ---- POST /ask ----
@@ -346,34 +411,6 @@ app.get("/messages", async (req, res) => {
   }
 
   res.json({ status: "ok", count: messages.length, messages });
-});
-
-// ---- POST /wait ----
-app.post("/wait", async (req, res) => {
-  const { timeout_seconds = 300, notify = true } = req.body ?? {};
-  const channelId = resolveChannelId(req);
-  if (!channelId) {
-    return res.status(400).json({ status: "error", error: "channelId is required" });
-  }
-
-  const timeoutMs = Math.min(timeout_seconds * 1000, CONFIG.maxTimeout);
-
-  const queue = getMessageQueue(channelId);
-  if (queue.length > 0) {
-    const msg = queue.shift();
-    return res.json({ status: "received", message: msg });
-  }
-
-  if (notify) {
-    await sendMessage(channelId, `待機します（タイムアウト${timeout_seconds}s）`);
-  }
-
-  try {
-    const reply = await waitForReply(channelId, timeoutMs);
-    res.json({ status: "received", message: reply });
-  } catch (err) {
-    res.status(408).json({ status: "timeout", error: err.message });
-  }
 });
 
 // ---------------------------------------------------------------------------
