@@ -221,9 +221,9 @@ app.get("/events", (req, res) => {
   // Send connected event
   res.write(`event: connected\ndata: ${JSON.stringify({ channelId })}\n\n`);
 
-  // Flush any queued messages
+  // Flush one queued message (script reads one at a time; rest stay in queue)
   const queue = getMessageQueue(channelId);
-  while (queue.length > 0) {
+  if (queue.length > 0) {
     const msg = queue.shift();
     res.write(`event: message\ndata: ${JSON.stringify(msg)}\n\n`);
   }
