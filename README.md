@@ -35,7 +35,11 @@ graph LR
 ターミナル上に表示される権限確認は Discord から許可できないので、自動実行モードでの起動を推奨します。
 
 ```bash
+# Claude Code
 claude --dangerously-skip-permissions
+
+# Codex CLI
+codex --full-auto
 ```
 
 > **※ 自己責任で実行してください。** エージェントがファイル編集やコマンド実行を確認なしで行うことを意味します。信頼できるプロジェクト・環境でのみ使用してください。
