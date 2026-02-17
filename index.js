@@ -291,7 +291,7 @@ app.post("/ask", async (req, res) => {
     inline: true,
   });
   const embed = createEmbed({
-    title: "Question",
+    title: "❓ Question",
     description: question,
     color: 0xe84393,
     fields,
@@ -385,7 +385,7 @@ app.post("/send-file", async (req, res) => {
   const attachment = new AttachmentBuilder(fileBuffer, { name: fileName });
 
   const embed = createEmbed({
-    title: "File",
+    title: "📎 File",
     description: message || `\`${fileName}\``,
     color: 0x9b59b6,
   });
