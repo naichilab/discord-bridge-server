@@ -2,6 +2,12 @@
 
 Claude Code / Codex CLI を Discord 経由で操作するための中継サーバーと、エージェント用スキルを提供します。
 
+> [!WARNING]
+> 作者は **Claude Code** を使っており、 **Codex CLI** での動作確認は行っていません  
+> Codexでも利用できるようにSkillsを構成したつもりですが、README通り設定してもうまく動かないかもです  
+> もしCodexをお使いの方で動かせた場合は、苦労した点などご報告いただけると幸いです
+
+
 ## 対象
 
 - Claude Code や Codex CLI を **Discord を介してリモート操作**したい人
