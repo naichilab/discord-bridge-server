@@ -130,8 +130,8 @@ async function initDiscord() {
 
       // Auto-ack: show queue depth (debug embed)
       const ackEmbed = createEmbed({
-        title: "Debug(discord-bridge)",
-        description: `受信 キュー${queue.length}`,
+        title: "🔨 Debug(discord-bridge)",
+        description: `メッセージ受信: キュー${queue.length}`,
         color: 0x95a5a6,
       });
       message.channel.send({ embeds: [ackEmbed] }).catch(() => {});
@@ -226,6 +226,16 @@ app.get("/events", (req, res) => {
 
   // Send connected event
   res.write(`event: connected\ndata: ${JSON.stringify({ channelId })}\n\n`);
+
+  // Notify Discord that a client connected (debug embed)
+  fetchChannel(channelId).then((ch) => {
+    const connectEmbed = createEmbed({
+      title: "🔨 Debug(discord-bridge)",
+      description: "クライアント接続",
+      color: 0x95a5a6,
+    });
+    ch.send({ embeds: [connectEmbed] }).catch(() => {});
+  }).catch(() => {});
 
   // If there are queued messages, notify immediately so client can fetch via /messages
   const queue = getMessageQueue(channelId);
@@ -332,7 +342,7 @@ app.post("/notify", async (req, res) => {
     await sendMessage(channelId, message);
   } else {
     const defaultTitle = level === "debug"
-      ? "Debug(discord-bridge)"
+      ? "🔨 Debug(discord-bridge)"
       : `${iconMap[level]} ${level.charAt(0).toUpperCase() + level.slice(1)}`;
     const embed = createEmbed({
       title: title || defaultTitle,
@@ -411,7 +421,7 @@ app.get("/messages", async (req, res) => {
           ? msg.content.slice(0, 20) + "..."
           : msg.content;
         const deliveryEmbed = createEmbed({
-          title: "Debug(discord-bridge)",
+          title: "🔨 Debug(discord-bridge)",
           description: `メッセージ伝達: ${preview}`,
           color: 0x95a5a6,
         });
