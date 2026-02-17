@@ -128,8 +128,13 @@ async function initDiscord() {
       // Notify SSE subscribers that a new message is available
       broadcastSseEvent(chId, "notify", {});
 
-      // Auto-ack: show queue depth
-      message.channel.send(`受信 キュー${queue.length}`).catch(() => {});
+      // Auto-ack: show queue depth (debug embed)
+      const ackEmbed = createEmbed({
+        title: "\ud83d\udd27 Debug",
+        description: `受信 キュー${queue.length}`,
+        color: 0x95a5a6,
+      });
+      message.channel.send({ embeds: [ackEmbed] }).catch(() => {});
     }
   });
 
@@ -313,12 +318,14 @@ app.post("/notify", async (req, res) => {
     success: 0x2ecc71,
     warning: 0xf39c12,
     error: 0xe74c3c,
+    debug: 0x95a5a6,
   };
   const iconMap = {
     info: "\u2139\ufe0f",
     success: "\u2705",
     warning: "\u26a0\ufe0f",
     error: "\u274c",
+    debug: "\ud83d\udd27",
   };
 
   if (level === "info") {
@@ -393,7 +400,7 @@ app.get("/messages", async (req, res) => {
   const queued = queue.splice(0, count);
   messages.push(...queued.map((m) => ({ ...m, source: "queued" })));
 
-  // Notify Discord that messages were delivered to Claude Code
+  // Notify Discord that messages were delivered to Claude Code (debug embed)
   if (queued.length > 0) {
     try {
       const ch = await fetchChannel(channelId);
@@ -401,7 +408,12 @@ app.get("/messages", async (req, res) => {
         const preview = msg.content.length > 20
           ? msg.content.slice(0, 20) + "..."
           : msg.content;
-        ch.send(`メッセージ伝達: ${preview}`).catch(() => {});
+        const deliveryEmbed = createEmbed({
+          title: "\ud83d\udd27 Debug",
+          description: `メッセージ伝達: ${preview}`,
+          color: 0x95a5a6,
+        });
+        ch.send({ embeds: [deliveryEmbed] }).catch(() => {});
       }
     } catch { /* ignore */ }
   }
