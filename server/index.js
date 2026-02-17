@@ -15,6 +15,7 @@ import path from "path";
 const CONFIG = {
   token: process.env.DISCORD_BRIDGE_TOKEN,
   userId: process.env.DISCORD_BRIDGE_USER_ID,
+  host: process.env.DISCORD_BRIDGE_HOST || "127.0.0.1",
   port: parseInt(process.env.DISCORD_BRIDGE_PORT || "13456", 10),
   defaultTimeout: 5 * 60 * 1000,
   maxTimeout: 30 * 60 * 1000,
@@ -454,9 +455,9 @@ async function main() {
   validateConfig();
   await initDiscord();
 
-  app.listen(CONFIG.port, () => {
+  app.listen(CONFIG.port, CONFIG.host, () => {
     console.log(
-      `[discord-bridge] HTTP server listening on http://localhost:${CONFIG.port}`
+      `[discord-bridge] HTTP server listening on http://${CONFIG.host}:${CONFIG.port}`
     );
   });
 }
