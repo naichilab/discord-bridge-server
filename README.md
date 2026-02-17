@@ -96,7 +96,7 @@ export DISCORD_BRIDGE_USER_ID="your_user_id_here"
 
 ### 4. プロジェクト設定
 
-Claude Code を使うプロジェクトのルートに `.discord-bridge.json` を作成:
+Claude Code / Codex CLI を使うプロジェクトのルートに `.discord-bridge.json` を作成:
 
 ```json
 {
@@ -158,11 +158,11 @@ discord-bridge status
 
 ### テスト通知
 
-Claude Code を使っているターミナルで「Discord に通知して」と伝えます。
+Claude Code / Codex CLI を使っているターミナルで「Discord に通知して」と伝えます。
 
 ### 離席モードにする
 
-Claude Code を使っているターミナルで「離席するよ」と伝えます。
+Claude Code / Codex CLI を使っているターミナルで「離席するよ」と伝えます。
 Discord 側に「待機中」のログが流れたら、それ以降は Discord で指示できます。
 
 > 離席モード中はターミナルでの指示はできません。
