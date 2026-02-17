@@ -130,7 +130,7 @@ async function initDiscord() {
 
       // Auto-ack: show queue depth (debug embed)
       const ackEmbed = createEmbed({
-        title: "\ud83d\udd27 Debug",
+        title: "Debug(discord-bridge)",
         description: `受信 キュー${queue.length}`,
         color: 0x95a5a6,
       });
@@ -331,9 +331,11 @@ app.post("/notify", async (req, res) => {
   if (level === "info") {
     await sendMessage(channelId, message);
   } else {
+    const defaultTitle = level === "debug"
+      ? "Debug(discord-bridge)"
+      : `${iconMap[level]} ${level.charAt(0).toUpperCase() + level.slice(1)}`;
     const embed = createEmbed({
-      title:
-        title || `${iconMap[level]} ${level.charAt(0).toUpperCase() + level.slice(1)}`,
+      title: title || defaultTitle,
       description: message,
       color: colorMap[level] ?? colorMap.info,
     });
@@ -409,7 +411,7 @@ app.get("/messages", async (req, res) => {
           ? msg.content.slice(0, 20) + "..."
           : msg.content;
         const deliveryEmbed = createEmbed({
-          title: "\ud83d\udd27 Debug",
+          title: "Debug(discord-bridge)",
           description: `メッセージ伝達: ${preview}`,
           color: 0x95a5a6,
         });
