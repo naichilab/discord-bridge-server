@@ -1,28 +1,58 @@
 # discord-bridge
 
-Claude Code と Discord の双方向通信ブリッジ。スマホから Claude Code を操作できます。
+Claude Code / Codex CLI を Discord 経由で操作するための中継サーバーと、エージェント用スキルを提供します。
 
-## 機能
+## 対象
 
-- **質問 & 返答** - Discord で質問して返答を待つ
-- **通知** - 進捗・成功・警告・エラーを通知
-- **ファイル共有** - ファイルを Discord に送信
-- **メッセージ取得** - ユーザーからの指示を取得
-- **リアルタイム待機** - SSE 接続で次の指示を待機
-- **離席モード** - ターミナルを離れても Discord 経由で操作
-- **Claude Code / Codex 対応** - どちらのプラットフォームにもスキルをインストール可能
+- Claude Code や Codex CLI を **Discord を介してリモート操作**したい人
+- [OpenClaw](https://github.com/openclaw/openclaw) ほど大がかりな仕組みは不要で、**シンプルに Discord から指示を出せればいい**人
+- 外出先のスマホから作業指示を出したい人
 
-## インストール
+## できること
 
-```bash
-npm install -g discord-bridge
+ターミナルで Claude Code / Codex を起動し、Discord の専用チャンネルを通じて Bot 経由で双方向にやりとりできます。
+
+**Discord → エージェント（あなたからの操作）**
+
+- **作業指示** - Discord にメッセージを送るだけでエージェントに指示を出せる
+- **質問への回答** - エージェントからの確認にリアルタイムで回答
+- **離席モード終了** - 「戻ったよ」と送って通常のターミナル操作に戻る
+
+**エージェント → Discord（エージェントからの連絡）**
+
+- **進捗通知** - 処理の進捗・成功・エラーを Discord に通知
+- **質問** - 判断が必要な場面で選択肢付きの質問を送信
+- **ファイル送信** - スクリーンショットやログを Discord に共有
+
+```mermaid
+graph LR
+    A[Claude Code<br/>Codex CLI] <-->|HTTP localhost<br/>スキル経由で通信| B[discord-bridge<br/>中継サーバー]
+    B <-->|Discord API<br/>Bot が中継| C[Discord<br/>スマホ等]
 ```
 
-## セットアップ
+## 注意事項
+
+ターミナル上に表示される権限確認は Discord から許可できないので、自動実行モードでの起動を前提としています。
+エージェントがファイル編集やコマンド実行を確認なしで行うことを意味します。
+各 AI エージェントの注意事項をよく読み、自己責任で実行してください。
+
+> **※ よく分からない場合は実行しないでください。**
+
+```bash
+# Claude Code
+claude --dangerously-skip-permissions
+
+# Codex CLI
+codex --full-auto
+```
+
+## 事前準備
+
+以下はブラウザや Discord アプリでの操作が必要なため、あらかじめ手動で済ませておいてください。
 
 ### 1. Discord Bot 作成
 
-1. https://discord.com/developers/applications にアクセス
+1. [Discord Developer Portal](https://discord.com/developers/applications) にアクセス
 2. "New Application" をクリック → 名前を入力して作成
 3. 左メニュー "Bot" → "Reset Token" → トークンをコピー
 4. "Privileged Gateway Intents" で **MESSAGE CONTENT INTENT** を有効化
@@ -39,7 +69,25 @@ Discord の設定 → 詳細設定 → **開発者モード** を有効化して
 - **ユーザー ID**: 自分の名前を右クリック → "ユーザー ID をコピー"
   - Bot に指示を出すユーザー（自分自身）の ID です。Bot があなたからのメッセージだけを処理するために使います
 
-### 3. 環境変数の設定
+## セットアップ
+
+Claude Code / Codex CLI にこのページの URL を渡してセットアップを依頼してください。
+
+以下は手動で行う場合の手順です。
+
+### 1. インストール
+
+```bash
+npm install -g discord-bridge
+```
+
+アップデートする場合も同じコマンドです:
+
+```bash
+npm update -g discord-bridge
+```
+
+### 2. 環境変数の設定
 
 `~/.zshrc` に追加:
 
@@ -48,11 +96,11 @@ export DISCORD_BRIDGE_TOKEN="your_bot_token_here"
 export DISCORD_BRIDGE_USER_ID="your_user_id_here"
 ```
 
-設定後、現在のターミナルに反映するには `source ~/.zshrc` を実行してください（新しいターミナルを開く場合は不要です）。
+設定後、`source ~/.zshrc` で反映してください（新しいターミナルを開く場合は不要です）。
 
-### 4. プロジェクト設定
+### 3. プロジェクト設定
 
-Claude Code を使うプロジェクトのルートに `.discord-bridge.json` を作成:
+Claude Code / Codex CLI を使うプロジェクトのルートに `.discord-bridge.json` を作成:
 
 ```json
 {
@@ -62,25 +110,22 @@ Claude Code を使うプロジェクトのルートに `.discord-bridge.json` �
 
 > **Note**: チャンネル ID は秘密情報ではありませんが、プロジェクト固有の設定です。チームで共有する場合はそのままコミットし、個人用の場合は `.gitignore` に追加してください。
 
-### 5. スキルのインストール
+### 4. スキルのインストール
 
 プラットフォームを指定してインストールします:
 
 ```bash
-# Claude Code の場合（プロジェクトローカル）
+# Claude Code の場合
 discord-bridge install claude
 
-# Codex の場合（プロジェクトローカル）
+# Codex の場合
 discord-bridge install codex
 ```
 
 `--user` を付けるとホームディレクトリにインストールされ、全プロジェクトで利用できます:
 
 ```bash
-# Claude Code（ユーザー全体）
 discord-bridge install claude --user
-
-# Codex（ユーザー全体）
 discord-bridge install codex --user
 ```
 
@@ -93,43 +138,52 @@ discord-bridge install codex --user
 
 インストール後、エージェントを再起動してスキルを読み込みます。
 
-### 6. 動作確認
+### 5. サーバーの起動
 
-サーバーを起動して接続を確認します:
+Claude Code / Codex を使うターミナルとは**別のターミナル**を開き、手動で起動しておきます:
 
 ```bash
 discord-bridge start
 ```
 
-別のターミナルでヘルスチェック:
+停止するには `Ctrl + C` を押してください。
+
+ヘルスチェック（任意）:
 
 ```bash
 discord-bridge status
 ```
 
-`{"status":"ok","bot":"BotName#1234",...}` のようなレスポンスが返れば成功です。
+`{"status":"ok","bot":"BotName#1234",...}` が返れば成功です。
 
 ## 使い方
 
-### サーバーの起動
+`.discord-bridge.json` を配置したプロジェクトフォルダで Claude Code / Codex CLI を起動してください。
 
-```bash
-discord-bridge start
-```
+### テスト通知
 
-### エージェントでの利用
+Claude Code / Codex CLI を使っているターミナルで「Discord に通知して」と伝えます。
 
-Claude Code や Codex で以下のように話しかけてください:
+### 離席モードにする
 
-- 「Discord にテスト通知を送って」 - 通知テスト
-- 「離席する」 - 離席モード（Discord 経由で操作）
+Claude Code / Codex CLI を使っているターミナルで「離席するよ」と伝えます。
+Discord 側に「待機中」のログが流れたら、それ以降は Discord で指示できます。
+
+> 離席モード中はターミナルでの指示はできません。
+
+### 離席モードを解除する
+
+Discord で「戻ったよ」と伝えます。
+エージェントがターミナル操作に戻り、通常通り使えるようになります。
 
 ## トラブルシューティング
 
-- **Bot がオフライン**: `DISCORD_BRIDGE_TOKEN` が正しいか確認
-- **メッセージが届かない**: MESSAGE CONTENT INTENT が有効か確認
-- **チャンネルが見つからない**: `.discord-bridge.json` の `channelId` が正しいか確認
-- **返答が受信されない**: `DISCORD_BRIDGE_USER_ID` が正しいか確認
+| 症状 | 確認ポイント |
+|---|---|
+| Bot がオフライン | `DISCORD_BRIDGE_TOKEN` が正しいか |
+| メッセージが届かない | MESSAGE CONTENT INTENT が有効か |
+| チャンネルが見つからない | `.discord-bridge.json` の `channelId` が正しいか |
+| 返答が受信されない | `DISCORD_BRIDGE_USER_ID` が正しいか |
 
 ## ライセンス
 
