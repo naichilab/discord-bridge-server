@@ -46,18 +46,6 @@ claude --dangerously-skip-permissions
 codex --full-auto
 ```
 
-## インストール
-
-```bash
-npm install -g discord-bridge
-```
-
-アップデートする場合も同じコマンドです:
-
-```bash
-npm update -g discord-bridge
-```
-
 ## 事前準備
 
 以下はブラウザや Discord アプリでの操作が必要なため、あらかじめ手動で済ませておいてください。
@@ -87,7 +75,19 @@ Claude Code / Codex CLI にこのページの URL を渡してセットアップ
 
 以下は手動で行う場合の手順です。
 
-### 1. 環境変数の設定
+### 1. インストール
+
+```bash
+npm install -g discord-bridge
+```
+
+アップデートする場合も同じコマンドです:
+
+```bash
+npm update -g discord-bridge
+```
+
+### 2. 環境変数の設定
 
 `~/.zshrc` に追加:
 
@@ -98,7 +98,7 @@ export DISCORD_BRIDGE_USER_ID="your_user_id_here"
 
 設定後、`source ~/.zshrc` で反映してください（新しいターミナルを開く場合は不要です）。
 
-### 2. プロジェクト設定
+### 3. プロジェクト設定
 
 Claude Code / Codex CLI を使うプロジェクトのルートに `.discord-bridge.json` を作成:
 
@@ -110,7 +110,7 @@ Claude Code / Codex CLI を使うプロジェクトのルートに `.discord-bri
 
 > **Note**: チャンネル ID は秘密情報ではありませんが、プロジェクト固有の設定です。チームで共有する場合はそのままコミットし、個人用の場合は `.gitignore` に追加してください。
 
-### 3. スキルのインストール
+### 4. スキルのインストール
 
 プラットフォームを指定してインストールします:
 
@@ -138,7 +138,7 @@ discord-bridge install codex --user
 
 インストール後、エージェントを再起動してスキルを読み込みます。
 
-### 4. サーバーの起動
+### 5. サーバーの起動
 
 Claude Code / Codex を使うターミナルとは**別のターミナル**を開き、手動で起動しておきます:
 
