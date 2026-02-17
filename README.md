@@ -145,6 +145,8 @@ discord-bridge status
 
 ## 使い方
 
+`.discord-bridge.json` を配置したプロジェクトフォルダで Claude Code / Codex CLI を起動してください。
+
 ### テスト通知
 
 Claude Code を使っているターミナルで「Discord に通知して」と伝えます。
