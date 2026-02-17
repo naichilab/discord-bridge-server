@@ -1,6 +1,6 @@
 {
   "name": "discord-bridge",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Claude Code <-> Discord bidirectional communication bridge",
   "type": "module",
   "bin": {
@@ -15,6 +15,10 @@
     "bridge",
     "cli"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/naichilab/discord-bridge-server"
+  },
   "author": "naichi",
   "license": "MIT",
   "dependencies": {
