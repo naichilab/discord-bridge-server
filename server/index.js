@@ -141,7 +141,7 @@ async function initDiscord() {
       resolve();
       return;
     }
-    discordClient.once("ready", resolve);
+    discordClient.once("clientReady", resolve);
     discordClient.once("error", reject);
   });
 
