@@ -1,11 +1,11 @@
 # discord-bridge
 
-Claude Code / Codex CLI を Discord 経由で操作するための中継サーバー。
+Claude Code / Codex CLI を Discord 経由で操作するための中継サーバーと、エージェント用スキルを提供します。
 
 ## 対象
 
 - Claude Code や Codex CLI を **Discord を介してリモート操作**したい人
-- [OpenClaw](https://github.com/anthropics/openclaw) ほど大がかりな仕組みは不要で、**シンプルに Discord から指示を出せればいい**人
+- [OpenClaw](https://github.com/openclaw/openclaw) ほど大がかりな仕組みは不要で、**シンプルに Discord から指示を出せればいい**人
 - 外出先のスマホから作業指示を出したい人
 
 ## できること
@@ -24,11 +24,10 @@ Claude Code / Codex CLI を Discord 経由で操作するための中継サー�
 - **質問** - 判断が必要な場面で選択肢付きの質問を送信
 - **ファイル送信** - スクリーンショットやログを Discord に共有
 
-```
-┌─────────────┐     HTTP (localhost)     ┌─────────────────┐     Discord API     ┌─────────────┐
-│  Claude Code │ ◄──────────────────────► │  discord-bridge  │ ◄────────────────► │   Discord    │
-│  / Codex CLI │    スキル経由で通信       │  (中継サーバー)   │    Bot が中継      │  (スマホ等)   │
-└─────────────┘                          └─────────────────┘                     └─────────────┘
+```mermaid
+graph LR
+    A[Claude Code<br/>Codex CLI] <-->|HTTP localhost<br/>スキル経由で通信| B[discord-bridge<br/>中継サーバー]
+    B <-->|Discord API<br/>Bot が中継| C[Discord<br/>スマホ等]
 ```
 
 ## 注意事項
@@ -44,7 +43,17 @@ Discord を介した操作では、**ターミナル上の権限許可ダイア�
 npm install -g discord-bridge
 ```
 
+アップデートする場合も同じコマンドです:
+
+```bash
+npm update -g discord-bridge
+```
+
 ## セットアップ
+
+Claude Code / Codex CLI にこのページの URL を渡してセットアップを依頼してください。
+
+以下は手動で行う場合の手順です。
 
 ### 1. Discord Bot 作成
 
@@ -118,11 +127,15 @@ discord-bridge install codex --user
 
 ### 6. サーバーの起動
 
+Claude Code / Codex を使うターミナルとは**別のターミナル**を開き、手動で起動しておきます:
+
 ```bash
 discord-bridge start
 ```
 
-別のターミナルでヘルスチェック:
+停止するには `Ctrl + C` を押してください。
+
+ヘルスチェック（任意）:
 
 ```bash
 discord-bridge status
@@ -130,19 +143,23 @@ discord-bridge status
 
 `{"status":"ok","bot":"BotName#1234",...}` が返れば成功です。
 
-> **Note**: サーバーは手動で起動が必要です。エージェントが自動起動することはありません。常時起動したい場合は launchd 等のサービスマネージャーに登録してください。
-
 ## 使い方
 
-エージェントに話しかけるだけで Discord 連携が使えます:
+### テスト通知
 
-```
-離席する              → Discord 待受モードに入る（スマホから操作可能に）
-戻ったよ              → 離席モード終了、ターミナルに戻る
-Discord に通知して     → テスト通知の送信
-```
+Claude Code を使っているターミナルで「Discord に通知して」と伝えます。
 
-離席モード中は、Discord で送ったメッセージがそのままエージェントへの指示になります。
+### 離席モードにする
+
+Claude Code を使っているターミナルで「離席するよ」と伝えます。
+Discord 側に「待機中」のログが流れたら、それ以降は Discord で指示できます。
+
+> 離席モード中はターミナルでの指示はできません。
+
+### 離席モードを解除する
+
+Discord で「戻ったよ」と伝えます。
+エージェントがターミナル操作に戻り、通常通り使えるようになります。
 
 ## トラブルシューティング
 
