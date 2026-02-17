@@ -15,6 +15,8 @@ import path from "path";
 const CONFIG = {
   token: process.env.DISCORD_BRIDGE_TOKEN,
   userId: process.env.DISCORD_BRIDGE_USER_ID,
+  apiKey: process.env.DISCORD_BRIDGE_API_KEY,
+  host: process.env.DISCORD_BRIDGE_HOST || "127.0.0.1",
   port: parseInt(process.env.DISCORD_BRIDGE_PORT || "13456", 10),
   defaultTimeout: 5 * 60 * 1000,
   maxTimeout: 30 * 60 * 1000,
@@ -27,6 +29,7 @@ function validateConfig() {
   const missing = [];
   if (!CONFIG.token) missing.push("DISCORD_BRIDGE_TOKEN");
   if (!CONFIG.userId) missing.push("DISCORD_BRIDGE_USER_ID");
+  if (!CONFIG.apiKey) missing.push("DISCORD_BRIDGE_API_KEY");
   if (missing.length > 0) {
     throw new Error(
       `Missing required environment variables: ${missing.join(", ")}`
@@ -190,12 +193,34 @@ function resolveChannelId(req) {
   return req.body?.channelId || req.query?.channelId || null;
 }
 
+function extractApiKey(req) {
+  const authHeader = req.get("authorization");
+  if (authHeader?.toLowerCase().startsWith("bearer ")) {
+    return authHeader.slice("bearer ".length);
+  }
+  return req.get("x-api-key");
+}
+
+function requireApiKey(req, res, next) {
+  const provided = extractApiKey(req);
+  if (!provided) {
+    return res.status(401).json({ status: "error", error: "API key required" });
+  }
+  if (provided !== CONFIG.apiKey) {
+    return res
+      .status(401)
+      .json({ status: "error", error: "Invalid API key" });
+  }
+  next();
+}
+
 // ---------------------------------------------------------------------------
 // HTTP API
 // ---------------------------------------------------------------------------
 
 const app = express();
 app.use(express.json());
+app.use(requireApiKey);
 
 // ---- GET /health ----
 app.get("/health", (_req, res) => {
@@ -454,9 +479,9 @@ async function main() {
   validateConfig();
   await initDiscord();
 
-  app.listen(CONFIG.port, () => {
+  app.listen(CONFIG.port, CONFIG.host, () => {
     console.log(
-      `[discord-bridge] HTTP server listening on http://localhost:${CONFIG.port}`
+      `[discord-bridge] HTTP server listening on http://${CONFIG.host}:${CONFIG.port}`
     );
   });
 }

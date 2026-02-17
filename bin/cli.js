@@ -46,8 +46,16 @@ switch (command) {
 
   case "status": {
     const port = process.env.DISCORD_BRIDGE_PORT || "13456";
+    const host = process.env.DISCORD_BRIDGE_HOST || "127.0.0.1";
+    const apiKey = process.env.DISCORD_BRIDGE_API_KEY;
+    if (!apiKey) {
+      console.error("DISCORD_BRIDGE_API_KEY is required to call status");
+      process.exit(1);
+    }
     try {
-      const res = await fetch(`http://localhost:${port}/health`);
+      const res = await fetch(`http://${host}:${port}/health`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
       const data = await res.json();
       console.log(JSON.stringify(data, null, 2));
     } catch {

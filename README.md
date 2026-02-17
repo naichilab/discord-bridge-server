@@ -45,6 +45,9 @@ Discord の設定 → 詳細設定 → **開発者モード** を有効化して
 ```bash
 export DISCORD_BRIDGE_TOKEN="your_bot_token_here"
 export DISCORD_BRIDGE_USER_ID="your_user_id_here"
+export DISCORD_BRIDGE_API_KEY="generate_a_long_random_string"
+# Optional: bind HTTP API to a specific host (default: 127.0.0.1)
+# export DISCORD_BRIDGE_HOST="127.0.0.1"
 ```
 
 設定後: `source ~/.zshrc`
@@ -80,6 +83,11 @@ discord-bridge start
 ```bash
 discord-bridge status
 ```
+
+## セキュリティ
+
+- すべての HTTP エンドポイントは `Authorization: Bearer <DISCORD_BRIDGE_API_KEY>` ヘッダーでの認証が必須です。`DISCORD_BRIDGE_API_KEY` には十分に長いランダム文字列を設定してください。
+- HTTP サーバーはデフォルトで `127.0.0.1` にバインドされ、ローカルホスト経由のアクセスのみを受け付けます。リッスンアドレスを変える場合は `DISCORD_BRIDGE_HOST` を明示的に設定してください。
 
 ### Claude Code での利用
 
