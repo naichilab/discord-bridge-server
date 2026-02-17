@@ -129,7 +129,7 @@ async function initDiscord() {
       broadcastSseEvent(chId, "notify", {});
 
       // Auto-ack: show queue depth
-      message.channel.send(`🔨 **Debug(discord-bridge)** 受信: キュー${queue.length}`).catch(() => {});
+      message.channel.send(`🔨 **Debug** 受信: キュー${queue.length}`).catch(() => {});
     }
   });
 
@@ -224,7 +224,7 @@ app.get("/events", (req, res) => {
 
   // Notify Discord that a client connected
   fetchChannel(channelId).then((ch) => {
-    ch.send("🔨 **Debug(discord-bridge)** クライアント待機中").catch(() => {});
+    ch.send("🔨 **Debug** クライアント待機中").catch(() => {});
   }).catch(() => {});
 
   // If there are queued messages, notify immediately so client can fetch via /messages
@@ -331,7 +331,7 @@ app.post("/notify", async (req, res) => {
   if (level === "info") {
     await sendMessage(channelId, message);
   } else if (level === "debug") {
-    await sendMessage(channelId, `🔨 **Debug(discord-bridge)** ${message}`);
+    await sendMessage(channelId, `🔨 **Debug** ${message}`);
   } else {
     const defaultTitle = `${iconMap[level]} ${level.charAt(0).toUpperCase() + level.slice(1)}`;
     const embed = createEmbed({
@@ -408,7 +408,7 @@ app.get("/messages", async (req, res) => {
       const ch = await fetchChannel(channelId);
       for (const msg of queued) {
         const preview = msg.content.replace(/\n/g, " ").slice(0, 15);
-        ch.send(`🔨 **Debug(discord-bridge)** 伝達: \`${preview}\``).catch(() => {});
+        ch.send(`🔨 **Debug** 伝達: \`${preview}\``).catch(() => {});
       }
     } catch { /* ignore */ }
   }
