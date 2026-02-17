@@ -129,7 +129,7 @@ async function initDiscord() {
       broadcastSseEvent(chId, "notify", {});
 
       // Auto-ack: show queue depth
-      message.channel.send(`🔨 **Debug(discord-bridge)** メッセージ受信: キュー${queue.length}`).catch(() => {});
+      message.channel.send(`🔨 **Debug(discord-bridge)** 受信: キュー${queue.length}`).catch(() => {});
     }
   });
 
