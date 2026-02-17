@@ -37,6 +37,7 @@ Discord の設定 → 詳細設定 → **開発者モード** を有効化して
 
 - **チャンネル ID**: チャンネル名を右クリック → "チャンネル ID をコピー"
 - **ユーザー ID**: 自分の名前を右クリック → "ユーザー ID をコピー"
+  - Bot に指示を出すユーザー（自分自身）の ID です。Bot があなたからのメッセージだけを処理するために使います
 
 ### 3. 環境変数の設定
 
@@ -47,7 +48,7 @@ export DISCORD_BRIDGE_TOKEN="your_bot_token_here"
 export DISCORD_BRIDGE_USER_ID="your_user_id_here"
 ```
 
-設定後: `source ~/.zshrc`
+設定後、現在のターミナルに反映するには `source ~/.zshrc` を実行してください（新しいターミナルを開く場合は不要です）。
 
 ### 4. プロジェクト設定
 
@@ -59,13 +60,33 @@ Claude Code を使うプロジェクトのルートに `.discord-bridge.json` �
 }
 ```
 
+> **Note**: チャンネル ID は秘密情報ではありませんが、プロジェクト固有の設定です。チームで共有する場合はそのままコミットし、個人用の場合は `.gitignore` に追加してください。
+
 ### 5. Claude Code プラグインのインストール
 
 ```bash
 discord-bridge install
 ```
 
+`~/.claude/plugins/discord-bridge/` にスキル（Discord 通知・質問・待機など）と Hooks（イベント自動転送）が配置されます。
+
 Claude Code を再起動してプラグインを読み込みます。
+
+### 6. 動作確認
+
+サーバーを起動して接続を確認します:
+
+```bash
+discord-bridge start
+```
+
+別のターミナルでヘルスチェック:
+
+```bash
+discord-bridge status
+```
+
+`{"status":"ok","bot":"BotName#1234",...}` のようなレスポンスが返れば成功です。
 
 ## 使い方
 
@@ -73,12 +94,6 @@ Claude Code を再起動してプラグインを読み込みます。
 
 ```bash
 discord-bridge start
-```
-
-### ヘルスチェック
-
-```bash
-discord-bridge status
 ```
 
 ### Claude Code での利用
