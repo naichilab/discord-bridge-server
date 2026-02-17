@@ -224,7 +224,7 @@ app.get("/events", (req, res) => {
 
   // Notify Discord that a client connected
   fetchChannel(channelId).then((ch) => {
-    ch.send("🔨 **Debug(discord-bridge)** クライアント接続").catch(() => {});
+    ch.send("🔨 **Debug(discord-bridge)** クライアント待機中").catch(() => {});
   }).catch(() => {});
 
   // If there are queued messages, notify immediately so client can fetch via /messages
