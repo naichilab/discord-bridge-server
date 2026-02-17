@@ -20,6 +20,7 @@ const CONFIG = {
   maxTimeout: 30 * 60 * 1000,
   maxFileSize: 8 * 1024 * 1024,
   maxMessageHistory: 50,
+  sseKeepAliveInterval: 30 * 1000,
 };
 
 function validateConfig() {
@@ -43,12 +44,30 @@ let discordClient = null;
 const channelCache = new Map();
 const messageQueues = new Map();
 const pendingQuestions = new Map();
+const sseSubscribers = new Map();
 
 function getMessageQueue(channelId) {
   if (!messageQueues.has(channelId)) {
     messageQueues.set(channelId, []);
   }
   return messageQueues.get(channelId);
+}
+
+function getSseSubscribers(channelId) {
+  if (!sseSubscribers.has(channelId)) {
+    sseSubscribers.set(channelId, new Set());
+  }
+  return sseSubscribers.get(channelId);
+}
+
+function broadcastSseEvent(channelId, event, data) {
+  const subscribers = sseSubscribers.get(channelId);
+  if (!subscribers || subscribers.size === 0) return false;
+  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  for (const res of subscribers) {
+    res.write(payload);
+  }
+  return true;
 }
 
 async function fetchChannel(channelId) {
@@ -92,17 +111,25 @@ async function initDiscord() {
       id: message.id,
     };
 
+    // Priority: pendingQuestion (/ask) > queue + SSE notify
     const pending = pendingQuestions.get(chId);
     if (pending) {
       clearTimeout(pending.timeoutId);
       pendingQuestions.delete(chId);
       pending.resolve(parsed);
     } else {
+      // Always queue (SSE is unreliable for delivery confirmation)
       const queue = getMessageQueue(chId);
       queue.push(parsed);
       if (queue.length > CONFIG.maxMessageHistory) {
         queue.shift();
       }
+
+      // Notify SSE subscribers that a new message is available
+      broadcastSseEvent(chId, "notify", {});
+
+      // Auto-ack: show queue depth
+      message.channel.send(`🔨 **Debug** 受信: キュー${queue.length}`).catch(() => {});
     }
   });
 
@@ -174,8 +201,55 @@ app.get("/health", (_req, res) => {
   if (channelId) {
     response.channel = channelId;
     response.queuedMessages = getMessageQueue(channelId).length;
+    response.sseSubscribers = getSseSubscribers(channelId).size;
   }
   res.json(response);
+});
+
+// ---- GET /events (SSE) ----
+app.get("/events", (req, res) => {
+  const channelId = req.query.channelId;
+  if (!channelId) {
+    return res.status(400).json({ status: "error", error: "channelId is required" });
+  }
+
+  // Set SSE headers
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  // Send connected event
+  res.write(`event: connected\ndata: ${JSON.stringify({ channelId })}\n\n`);
+
+  // Notify Discord that a client connected
+  fetchChannel(channelId).then((ch) => {
+    ch.send("🔨 **Debug** クライアント待機中").catch(() => {});
+  }).catch(() => {});
+
+  // If there are queued messages, notify immediately so client can fetch via /messages
+  const queue = getMessageQueue(channelId);
+  if (queue.length > 0) {
+    res.write(`event: notify\ndata: {}\n\n`);
+  }
+
+  // Register subscriber
+  const subscribers = getSseSubscribers(channelId);
+  subscribers.add(res);
+
+  // Keep-alive ping
+  const pingInterval = setInterval(() => {
+    res.write(`event: ping\ndata: ${JSON.stringify({ timestamp: new Date().toISOString() })}\n\n`);
+  }, CONFIG.sseKeepAliveInterval);
+
+  // Cleanup on disconnect
+  req.on("close", () => {
+    clearInterval(pingInterval);
+    subscribers.delete(res);
+    if (subscribers.size === 0) {
+      sseSubscribers.delete(channelId);
+    }
+  });
 });
 
 // ---- POST /ask ----
@@ -207,7 +281,7 @@ app.post("/ask", async (req, res) => {
     inline: true,
   });
   const embed = createEmbed({
-    title: "Question from Claude Code",
+    title: "❓ Question",
     description: question,
     color: 0xe84393,
     fields,
@@ -244,20 +318,24 @@ app.post("/notify", async (req, res) => {
     success: 0x2ecc71,
     warning: 0xf39c12,
     error: 0xe74c3c,
+    debug: 0x95a5a6,
   };
   const iconMap = {
     info: "\u2139\ufe0f",
     success: "\u2705",
     warning: "\u26a0\ufe0f",
     error: "\u274c",
+    debug: "\ud83d\udd27",
   };
 
   if (level === "info") {
     await sendMessage(channelId, message);
+  } else if (level === "debug") {
+    await sendMessage(channelId, `🔨 **Debug** ${message}`);
   } else {
+    const defaultTitle = `${iconMap[level]} ${level.charAt(0).toUpperCase() + level.slice(1)}`;
     const embed = createEmbed({
-      title:
-        title || `${iconMap[level]} ${level.charAt(0).toUpperCase() + level.slice(1)}`,
+      title: title || defaultTitle,
       description: message,
       color: colorMap[level] ?? colorMap.info,
     });
@@ -297,7 +375,7 @@ app.post("/send-file", async (req, res) => {
   const attachment = new AttachmentBuilder(fileBuffer, { name: fileName });
 
   const embed = createEmbed({
-    title: "File from Claude Code",
+    title: "📎 File",
     description: message || `\`${fileName}\``,
     color: 0x9b59b6,
   });
@@ -324,6 +402,17 @@ app.get("/messages", async (req, res) => {
   const queued = queue.splice(0, count);
   messages.push(...queued.map((m) => ({ ...m, source: "queued" })));
 
+  // Notify Discord that messages were delivered to Claude Code (debug embed)
+  if (queued.length > 0) {
+    try {
+      const ch = await fetchChannel(channelId);
+      for (const msg of queued) {
+        const preview = msg.content.replace(/\n/g, " ").slice(0, 15);
+        ch.send(`🔨 **Debug** 伝達: \`${preview}\``).catch(() => {});
+      }
+    } catch { /* ignore */ }
+  }
+
   if (includeHistory && messages.length < count) {
     const remaining = count - messages.length;
     const ch = await fetchChannel(channelId);
@@ -346,34 +435,6 @@ app.get("/messages", async (req, res) => {
   }
 
   res.json({ status: "ok", count: messages.length, messages });
-});
-
-// ---- POST /wait ----
-app.post("/wait", async (req, res) => {
-  const { timeout_seconds = 300, notify = true } = req.body ?? {};
-  const channelId = resolveChannelId(req);
-  if (!channelId) {
-    return res.status(400).json({ status: "error", error: "channelId is required" });
-  }
-
-  const timeoutMs = Math.min(timeout_seconds * 1000, CONFIG.maxTimeout);
-
-  const queue = getMessageQueue(channelId);
-  if (queue.length > 0) {
-    const msg = queue.shift();
-    return res.json({ status: "received", message: msg });
-  }
-
-  if (notify) {
-    await sendMessage(channelId, `待機します（タイムアウト${timeout_seconds}s）`);
-  }
-
-  try {
-    const reply = await waitForReply(channelId, timeoutMs);
-    res.json({ status: "received", message: reply });
-  } catch (err) {
-    res.status(408).json({ status: "timeout", error: err.message });
-  }
 });
 
 // ---------------------------------------------------------------------------
