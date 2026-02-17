@@ -129,7 +129,7 @@ async function initDiscord() {
       broadcastSseEvent(chId, "notify", {});
 
       // Auto-ack: show queue depth
-      message.channel.send(`🔨 **Debug** 受信: キュー${queue.length}`).catch(() => {});
+      sendDebugMessage(message.channel, `受信: キュー${queue.length}`);
     }
   });
 
@@ -160,6 +160,13 @@ function createEmbed({ title, description, color = 0x7c3aed, fields = [] }) {
     embed.addFields(field);
   }
   return embed;
+}
+
+async function sendDebugMessage(channel, message) {
+  const embed = new EmbedBuilder()
+    .setDescription(`📡 ${message}`)
+    .setColor(0x95a5a6);
+  return channel.send({ embeds: [embed] }).catch(() => {});
 }
 
 async function sendMessage(channelId, content, embeds = [], files = []) {
@@ -224,7 +231,7 @@ app.get("/events", (req, res) => {
 
   // Notify Discord that a client connected
   fetchChannel(channelId).then((ch) => {
-    ch.send("🔨 **Debug** クライアント待機中").catch(() => {});
+    sendDebugMessage(ch, "待機中");
   }).catch(() => {});
 
   // If there are queued messages, notify immediately so client can fetch via /messages
@@ -325,13 +332,14 @@ app.post("/notify", async (req, res) => {
     success: "\u2705",
     warning: "\u26a0\ufe0f",
     error: "\u274c",
-    debug: "\ud83d\udd27",
+    debug: "\ud83d\udce1",
   };
 
   if (level === "info") {
     await sendMessage(channelId, message);
   } else if (level === "debug") {
-    await sendMessage(channelId, `🔨 **Debug** ${message}`);
+    const ch = await fetchChannel(channelId);
+    await sendDebugMessage(ch, message);
   } else {
     const defaultTitle = `${iconMap[level]} ${level.charAt(0).toUpperCase() + level.slice(1)}`;
     const embed = createEmbed({
@@ -407,8 +415,9 @@ app.get("/messages", async (req, res) => {
     try {
       const ch = await fetchChannel(channelId);
       for (const msg of queued) {
-        const preview = msg.content.replace(/\n/g, " ").slice(0, 15);
-        ch.send(`🔨 **Debug** 伝達: \`${preview}\``).catch(() => {});
+        const text = msg.content.replace(/\n/g, " ");
+        const preview = text.length > 5 ? text.slice(0, 5) + "......" : text;
+        sendDebugMessage(ch, `伝達: ${preview}`);
       }
     } catch { /* ignore */ }
   }
