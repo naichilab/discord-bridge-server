@@ -128,13 +128,8 @@ async function initDiscord() {
       // Notify SSE subscribers that a new message is available
       broadcastSseEvent(chId, "notify", {});
 
-      // Auto-ack: show queue depth (debug embed)
-      const ackEmbed = createEmbed({
-        title: "🔨 Debug(discord-bridge)",
-        description: `メッセージ受信: キュー${queue.length}`,
-        color: 0x95a5a6,
-      });
-      message.channel.send({ embeds: [ackEmbed] }).catch(() => {});
+      // Auto-ack: show queue depth
+      message.channel.send(`🔨 **Debug(discord-bridge)** メッセージ受信: キュー${queue.length}`).catch(() => {});
     }
   });
 
@@ -227,14 +222,9 @@ app.get("/events", (req, res) => {
   // Send connected event
   res.write(`event: connected\ndata: ${JSON.stringify({ channelId })}\n\n`);
 
-  // Notify Discord that a client connected (debug embed)
+  // Notify Discord that a client connected
   fetchChannel(channelId).then((ch) => {
-    const connectEmbed = createEmbed({
-      title: "🔨 Debug(discord-bridge)",
-      description: "クライアント接続",
-      color: 0x95a5a6,
-    });
-    ch.send({ embeds: [connectEmbed] }).catch(() => {});
+    ch.send("🔨 **Debug(discord-bridge)** クライアント接続").catch(() => {});
   }).catch(() => {});
 
   // If there are queued messages, notify immediately so client can fetch via /messages
@@ -340,10 +330,10 @@ app.post("/notify", async (req, res) => {
 
   if (level === "info") {
     await sendMessage(channelId, message);
+  } else if (level === "debug") {
+    await sendMessage(channelId, `🔨 **Debug(discord-bridge)** ${message}`);
   } else {
-    const defaultTitle = level === "debug"
-      ? "🔨 Debug(discord-bridge)"
-      : `${iconMap[level]} ${level.charAt(0).toUpperCase() + level.slice(1)}`;
+    const defaultTitle = `${iconMap[level]} ${level.charAt(0).toUpperCase() + level.slice(1)}`;
     const embed = createEmbed({
       title: title || defaultTitle,
       description: message,
@@ -417,15 +407,8 @@ app.get("/messages", async (req, res) => {
     try {
       const ch = await fetchChannel(channelId);
       for (const msg of queued) {
-        const preview = msg.content.length > 20
-          ? msg.content.slice(0, 20) + "..."
-          : msg.content;
-        const deliveryEmbed = createEmbed({
-          title: "🔨 Debug(discord-bridge)",
-          description: `メッセージ伝達: ${preview}`,
-          color: 0x95a5a6,
-        });
-        ch.send({ embeds: [deliveryEmbed] }).catch(() => {});
+        const preview = msg.content.replace(/\n/g, " ").slice(0, 15);
+        ch.send(`🔨 **Debug(discord-bridge)** 伝達: ${preview}`).catch(() => {});
       }
     } catch { /* ignore */ }
   }
