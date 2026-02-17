@@ -1,0 +1,8 @@
+{
+  "name": "discord-bridge",
+  "description": "Bidirectional communication bridge between Claude Code and Discord. Send questions, receive instructions, share files, and get progress updates through a dedicated Discord channel.",
+  "version": "1.0.0",
+  "author": {
+    "name": "naichi"
+  }
+}
