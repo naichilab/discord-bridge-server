@@ -408,7 +408,7 @@ app.get("/messages", async (req, res) => {
       const ch = await fetchChannel(channelId);
       for (const msg of queued) {
         const preview = msg.content.replace(/\n/g, " ").slice(0, 15);
-        ch.send(`🔨 **Debug(discord-bridge)** 伝達: ${preview}`).catch(() => {});
+        ch.send(`🔨 **Debug(discord-bridge)** 伝達: \`${preview}\``).catch(() => {});
       }
     } catch { /* ignore */ }
   }
